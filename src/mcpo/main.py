@@ -17,7 +17,10 @@ from starlette.routing import Mount
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import (
+    streamable_http_client,
+    create_mcp_http_client,
+)
 
 from mcpo.utils.auth import APIKeyMiddleware, get_verify_api_key
 from mcpo.utils.main import (
@@ -178,10 +181,12 @@ class MCPConnectionManager:
                 headers=self.headers,
             )
         if self.server_type == "streamable-http":
-            return streamablehttp_client(
+            return streamable_http_client(
                 url=self.args[0],
-                headers=self.headers,
-                auth=self.auth_provider,
+                http_client=create_mcp_http_client(
+                    headers=self.headers,
+                    auth=self.auth_provider,
+                ),
             )
         raise ValueError(f"Unsupported server type: {self.server_type}")
 
@@ -531,7 +536,7 @@ async def create_dynamic_endpoints(app: FastAPI, api_dependency=None):
         endpoint_name = tool.name
         endpoint_description = tool.description
 
-        inputSchema = tool.inputSchema
+        inputSchema = tool.input_schema
         outputSchema = getattr(tool, "outputSchema", None)
 
         form_model_fields = get_model_fields(
@@ -815,8 +820,6 @@ async def run(
         description=description,
         version=version,
         root_path=root_path,
-        ssl_certfile=ssl_certfile,
-        ssl_keyfile=ssl_keyfile,
         lifespan=lifespan,
     )
 

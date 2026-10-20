@@ -16,7 +16,7 @@ from mcp.types import (
     INTERNAL_ERROR,
 )
 
-from mcp.shared.exceptions import McpError
+from mcp.shared.exceptions import MCPError
 
 from pydantic import Field, create_model
 from pydantic.fields import FieldInfo
@@ -54,7 +54,7 @@ def process_tool_response(result: CallToolResult) -> list:
                     pass
             response.append(text)
         elif isinstance(content, types.ImageContent):
-            image_data = f"data:{content.mimeType};base64,{content.data}"
+            image_data = f"data:{content.mime_type};base64,{content.data}"
             response.append(image_data)
         elif isinstance(content, types.EmbeddedResource):
             # TODO: Handle embedded resources
@@ -351,7 +351,7 @@ def get_tool_handler(
             try:
                 result = await call_tool_with_reconnect(request, args)
 
-                if result.isError:
+                if result.is_error:
                     error_message = "Unknown tool execution error"
                     error_data = None
                     if result.content and isinstance(
@@ -369,7 +369,7 @@ def get_tool_handler(
                 )
                 return final_response
 
-            except McpError as e:
+            except MCPError as e:
                 logger.info(
                     f"MCP Error calling {endpoint_name}: {traceback.format_exc()}"
                 )
@@ -411,7 +411,7 @@ def get_tool_handler(
         try:
             result = await call_tool_with_reconnect(request, {})
 
-            if result.isError:
+            if result.is_error:
                 error_message = "Unknown tool execution error"
                 if result.content and isinstance(result.content[0], types.TextContent):
                     error_message = result.content[0].text
@@ -424,7 +424,7 @@ def get_tool_handler(
             )
             return final_response
 
-        except McpError as e:
+        except MCPError as e:
             logger.info(
                 f"MCP Error calling {endpoint_name}: {traceback.format_exc()}"
             )
