@@ -508,7 +508,7 @@ async def create_dynamic_endpoints(app: FastAPI, api_dependency=None):
         if not session:
             raise ValueError("Session is not initialized in the app state.")
         result = await session.initialize()
-    server_info = getattr(result, "serverInfo", None)
+    server_info = getattr(result, "server_info", None)
     if server_info:
         app.title = server_info.name or app.title
         app.description = (
@@ -537,7 +537,7 @@ async def create_dynamic_endpoints(app: FastAPI, api_dependency=None):
         endpoint_description = tool.description
 
         inputSchema = tool.input_schema
-        outputSchema = getattr(tool, "outputSchema", None)
+        outputSchema = tool.output_schema
 
         form_model_fields = get_model_fields(
             f"{endpoint_name}_form_model",
