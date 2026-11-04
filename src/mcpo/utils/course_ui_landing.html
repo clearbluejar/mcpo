@@ -1,0 +1,151 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP Tool Proxy</title><style>@@STYLE@@
+ul.list { list-style:none; padding:0; margin:8px 0 0; }
+ul.list > li { padding:10px 0; border-top:1px solid var(--line); }
+.name { font-family:ui-monospace, Menlo, monospace; font-weight:700; }
+.row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.badge { font-size:12px; padding:1px 8px; border-radius:999px; background:var(--code); color:var(--ink); }
+.badge.warn { background:var(--warnbg); color:var(--warn); }
+.warning { color:var(--warn); font-size:13px; margin-top:4px; }
+h3 { font-size:14px; margin:18px 0 0; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+input { font:inherit; font-size:13px; padding:3px 8px; border-radius:6px; border:1px solid var(--line);
+        background:var(--bg); color:var(--ink); }
+</style></head><body><main>
+<h1 id="title">MCP Tool Proxy</h1>
+<div class="muted">Your MCP server, exposed as a REST API by mcpo.</div>
+<nav><a href="docs">Swagger UI</a><a href="_trace">Live Tool Calls</a><a href="openapi.json">OpenAPI Spec</a></nav>
+
+<div class="card">
+  <h2>Connect OpenWebUI</h2>
+  <div class="muted">Settings → Tools → add this URL as a tool server.</div>
+  <div class="row"><pre id="connect" style="flex:1"></pre><button data-copy="connect">Copy</button></div>
+</div>
+
+<div id="servers"></div>
+
+<div class="card">
+  <h2>Call a Tool From Code</h2>
+  <div class="row"><pre id="curl" style="flex:1"></pre><button data-copy="curl">Copy</button></div>
+</div>
+
+<footer>Clearseclabs · Agentic RE course build of mcpo. Token counts are rough estimates (about 4 characters per token).</footer>
+</main><script>
+function el(tag, text, cls) { const e = document.createElement(tag);
+  if (text !== undefined && text !== null) e.textContent = text; if (cls) e.className = cls; return e; }
+function pretty(v) { return typeof v === "string" ? v : JSON.stringify(v, null, 2); }
+function copyButtons(root) { root.querySelectorAll("button[data-copy]").forEach(b => b.onclick = () => {
+  navigator.clipboard.writeText(document.getElementById(b.dataset.copy).textContent);
+  b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 1200); }); }
+copyButtons(document);
+
+function toolItem(t) {
+  const li = el("li");
+  const head = el("div", undefined, "row");
+  head.append(el("span", t.name, "name"));
+  if (t.title) head.append(el("span", t.title, "muted"));
+  for (const l of t.labels) head.append(el("span", l, "badge"));
+  if (t.tokens) head.append(el("span", "~" + t.tokens + " tokens", "badge"));
+  if (t.warnings.length) head.append(el("span", "docstring check", "badge warn"));
+  li.append(head);
+  if (t.summary) li.append(el("div", t.summary, "muted"));
+  for (const w of t.warnings) li.append(el("div", "⚠ " + w, "warning"));
+  return li;
+}
+
+async function addResources(card, base) {
+  const data = await (await fetch(base + "/_mcp/resources")).json();
+  const items = data.resources.concat(data.templates);
+  if (!items.length) return;
+  card.append(el("h3", "Resources"));
+  const ul = el("ul", undefined, "list");
+  for (const r of data.resources) {
+    const li = el("li"); const row = el("div", undefined, "row");
+    row.append(el("span", r.uri, "name"));
+    if (r.mimeType) row.append(el("span", r.mimeType, "badge"));
+    const out = el("pre"); out.hidden = true;
+    const b = el("button", "Read"); b.onclick = async () => {
+      const res = await (await fetch(base + "/_mcp/resources/read?uri=" + encodeURIComponent(r.uri))).json();
+      out.textContent = res.contents ? res.contents.map(c => c.text ?? ("[" + (c.mimeType || "binary") + "]")).join("\n") : pretty(res);
+      out.hidden = false; };
+    row.append(b); li.append(row);
+    if (r.description) li.append(el("div", r.description, "muted"));
+    li.append(out); ul.append(li);
+  }
+  for (const t of data.templates) {
+    const li = el("li"); const row = el("div", undefined, "row");
+    row.append(el("span", t.uriTemplate, "name"), el("span", "template", "badge"));
+    li.append(row);
+    if (t.description) li.append(el("div", t.description, "muted"));
+    ul.append(li);
+  }
+  card.append(ul);
+}
+
+async function addPrompts(card, base) {
+  const data = await (await fetch(base + "/_mcp/prompts")).json();
+  if (!data.prompts.length) return;
+  card.append(el("h3", "Prompts"));
+  const ul = el("ul", undefined, "list");
+  for (const p of data.prompts) {
+    const li = el("li"); const row = el("div", undefined, "row");
+    row.append(el("span", p.name, "name"));
+    const inputs = {};
+    for (const a of (p.arguments || [])) {
+      const i = el("input"); i.placeholder = a.name + (a.required ? " *" : "");
+      if (a.description) i.title = a.description;
+      inputs[a.name] = i; row.append(i);
+    }
+    const out = el("pre"); out.hidden = true;
+    const b = el("button", "Render"); b.onclick = async () => {
+      const args = {}; for (const [k, i] of Object.entries(inputs)) if (i.value) args[k] = i.value;
+      const res = await (await fetch(base + "/_mcp/prompts/" + encodeURIComponent(p.name),
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(args) })).json();
+      out.textContent = res.messages
+        ? res.messages.map(m => m.role.toUpperCase() + ":\n" + (m.content.text ?? pretty(m.content))).join("\n\n")
+        : pretty(res);
+      out.hidden = false; };
+    row.append(b); li.append(row);
+    if (p.description) li.append(el("div", p.description, "muted"));
+    li.append(out); ul.append(li);
+  }
+  card.append(ul);
+}
+
+fetch("_servers").then(r => r.json()).then(data => {
+  document.getElementById("title").textContent = data.title;
+  document.title = data.title;
+  const root = document.getElementById("servers");
+  const urls = [];
+  let example = null;
+  for (const s of data.servers) {
+    const url = data.base_url + s.path;
+    const rel = s.path ? s.path.replace(/^\//, "") + "/" : "";
+    urls.push(url);
+    const card = el("div", undefined, "card");
+    const head = el("div", undefined, "row");
+    const total = s.tools.reduce((n, t) => n + (t.tokens || 0), 0);
+    head.append(el("h2", s.name), el("span", s.tools.length + " tools", "muted"));
+    if (total) head.append(el("span", "~" + total + " tokens of tool definitions sent with every request", "badge"));
+    card.append(head);
+    const links = el("nav"); links.style.margin = "4px 0 0";
+    const docs = el("a", "Swagger →"); docs.href = rel + "docs";
+    const raw = el("a", "What the model sees (raw MCP) →"); raw.href = rel + "_mcp/tools";
+    links.append(docs, raw); card.append(links);
+    card.append(el("h3", "Tools"));
+    const ul = el("ul", undefined, "list");
+    for (const t of s.tools) {
+      ul.append(toolItem(t));
+      if (!example) example = { url: url + "/" + t.name, args: t.example };
+    }
+    card.append(ul);
+    root.append(card);
+    addResources(card, url).catch(() => {});
+    addPrompts(card, url).catch(() => {});
+  }
+  document.getElementById("connect").textContent = urls.join("\n") || data.base_url;
+  document.getElementById("curl").textContent = example
+    ? "curl -s -X POST " + example.url + " \\\n  -H 'Content-Type: application/json' \\\n  -d '" + JSON.stringify(example.args) + "'"
+    : "No tools found yet. Is the MCP server running?";
+});
+</script></body></html>

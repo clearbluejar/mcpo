@@ -1,0 +1,59 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Tool Calls</title><style>@@STYLE@@
+.call { border-left:4px solid var(--ok); }
+.call.err { border-left-color:var(--err); }
+.head { display:flex; gap:12px; flex-wrap:wrap; align-items:baseline; }
+.head .tool { font-weight:700; font-family:ui-monospace, Menlo, monospace; }
+.badge { font-size:12px; padding:1px 8px; border-radius:999px; background:var(--code); }
+.status { font-weight:700; color:var(--ok); } .err .status { color:var(--err); }
+details { margin-top:8px; } summary { cursor:pointer; color:var(--muted); font-size:13px; }
+.label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-top:8px; }
+#empty { text-align:center; padding:40px 0; }
+</style></head><body><main>
+<h1>Live Tool Calls</h1>
+<div class="muted">Every tool call through this proxy, newest first: what the caller sent and what came back.
+Point OpenWebUI at this proxy and watch which tools the model picks.</div>
+<nav><a href="./">Home</a><a href="docs">Swagger UI</a><span style="flex:1"></span>
+<button id="pause">Pause</button><button id="clear">Clear</button></nav>
+<div id="calls"><div id="empty" class="muted">No tool calls yet. Try one in Swagger or from OpenWebUI.</div></div>
+</main><script>
+let last = 0, paused = false;
+const calls = document.getElementById("calls");
+function el(tag, text, cls) { const e = document.createElement(tag);
+  if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
+function pretty(v) { return typeof v === "string" ? v : JSON.stringify(v, null, 2); }
+function render(c) {
+  const ok = c.status < 400;
+  const card = el("div", undefined, "card call" + (ok ? "" : " err"));
+  const head = el("div", undefined, "head");
+  head.append(
+    el("span", new Date(c.time * 1000).toLocaleTimeString(), "muted"),
+    el("span", (c.server ? c.server + " / " : "") + c.tool, "tool"),
+    el("span", c.client, "badge"),
+    el("span", c.status, "status"),
+    el("span", c.ms + " ms", "muted"));
+  card.append(head);
+  card.append(el("div", "Arguments", "label"), el("pre", pretty(c.arguments)));
+  const d = el("details"); if (!ok) d.open = true;
+  d.append(el("summary", ok ? "Result" : "Error"), el("pre", pretty(c.result)));
+  card.append(d);
+  return card;
+}
+async function poll() {
+  if (!paused) {
+    try {
+      const fresh = await (await fetch("_trace.json?after=" + last)).json();
+      if (fresh.length) document.getElementById("empty")?.remove();
+      for (const c of fresh) { calls.prepend(render(c)); last = Math.max(last, c.id); }
+    } catch (e) {}
+  }
+  setTimeout(poll, 1500);
+}
+document.getElementById("pause").onclick = e => {
+  paused = !paused; e.target.textContent = paused ? "Resume" : "Pause"; };
+document.getElementById("clear").onclick = async () => {
+  await fetch("_trace/clear", { method: "POST" });
+  calls.replaceChildren(el("div", "Cleared.", "muted")); };
+poll();
+</script></body></html>

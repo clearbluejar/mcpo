@@ -577,6 +577,8 @@ async def create_dynamic_endpoints(app: FastAPI, api_dependency=None):
             dependencies=[Depends(api_dependency)] if api_dependency else [],
         )(tool_handler)
 
+    course_ui.on_tools_loaded(app, tools)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
