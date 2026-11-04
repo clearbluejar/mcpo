@@ -75,6 +75,13 @@ def main(
     log_level: Annotated[
         Optional[str], typer.Option("--log-level", help="Set log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
     ] = None,
+    course_ui: Annotated[
+        bool,
+        typer.Option(
+            "--course-ui/--no-course-ui",
+            help="Landing page at /, live tool-call trace at /_trace, and Swagger UI defaults",
+        ),
+    ] = True,
 ):
     server_command = None
     if not config_path:
@@ -152,6 +159,7 @@ def main(
             root_path=root_path,
             headers=headers,
             hot_reload=hot_reload,
+            course_ui=course_ui,
         )
     )
 

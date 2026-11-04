@@ -28,6 +28,7 @@ from mcpo.utils.main import (
     get_tool_handler,
     normalize_server_type,
 )
+from mcpo.utils import course_ui
 from mcpo.utils.config_watcher import ConfigWatcher
 from mcpo.utils.headers import validate_client_header_forwarding_config
 from mcpo.utils.oauth import create_oauth_provider
@@ -273,6 +274,7 @@ def create_sub_app(
         version="1.0",
         lifespan=lifespan,
     )
+    course_ui.apply_swagger_defaults(sub_app)
 
     sub_app.add_middleware(
         CORSMiddleware,
@@ -834,6 +836,10 @@ async def run(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    if kwargs.get("course_ui", True):
+        course_ui.ENABLED = True
+        course_ui.enable(main_app, path_prefix)
 
     # Add middleware to protect also documentation and spec
     if api_key and strict_auth:
