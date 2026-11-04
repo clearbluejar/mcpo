@@ -11,14 +11,19 @@ ul.list > li { padding:10px 0; border-top:1px solid var(--line); }
 h3 { font-size:14px; margin:18px 0 0; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
 input { font:inherit; font-size:13px; padding:3px 8px; border-radius:6px; border:1px solid var(--line);
         background:var(--bg); color:var(--ink); }
-</style></head><body><main>
+input[type=checkbox] { padding:0; margin:0 6px 0 0; vertical-align:-1px; }
+.toggle { font-size:13px; cursor:pointer; user-select:none; }
+body.hide-checks .warning, body.hide-checks .badge.warn { display:none; }
+</style></head><body class="hide-checks"><main>
 <h1 id="title">MCP Tool Proxy</h1>
 <div class="muted">Your MCP server, exposed as a REST API by mcpo.</div>
 <nav><a href="docs">Swagger UI</a><a href="_trace">Live Tool Calls</a><a href="openapi.json">OpenAPI Spec</a></nav>
+<label class="toggle"><input type="checkbox" id="show-checks">Show docstring checks
+  <span id="check-count" class="muted"></span></label>
 
 <div class="card">
   <h2>Connect OpenWebUI</h2>
-  <div class="muted">Settings → Tools → add this URL as a tool server.</div>
+  <div class="muted">Admin Panel → Settings → Integrations → External Tool Servers → + (add this URL).</div>
   <div class="row"><pre id="connect" style="flex:1"></pre><button data-copy="connect">Copy</button></div>
 </div>
 
@@ -29,7 +34,7 @@ input { font:inherit; font-size:13px; padding:3px 8px; border-radius:6px; border
   <div class="row"><pre id="curl" style="flex:1"></pre><button data-copy="curl">Copy</button></div>
 </div>
 
-<footer>Clearseclabs · Agentic RE course build of mcpo. Token counts are rough estimates (about 4 characters per token).</footer>
+<footer>ClearSecLabs · Agentic RE course build of mcpo. Token counts are rough estimates (about 4 characters per token).</footer>
 </main><script>
 function el(tag, text, cls) { const e = document.createElement(tag);
   if (text !== undefined && text !== null) e.textContent = text; if (cls) e.className = cls; return e; }
@@ -38,6 +43,17 @@ function copyButtons(root) { root.querySelectorAll("button[data-copy]").forEach(
   navigator.clipboard.writeText(document.getElementById(b.dataset.copy).textContent);
   b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 1200); }); }
 copyButtons(document);
+
+const showChecks = document.getElementById("show-checks");
+function setChecks(on) {
+  showChecks.checked = on;
+  document.body.classList.toggle("hide-checks", !on);
+  try { localStorage.setItem("mcpo-show-checks", on ? "1" : "0"); } catch (e) {}
+}
+let savedChecks = null;
+try { savedChecks = localStorage.getItem("mcpo-show-checks"); } catch (e) {}
+setChecks(savedChecks === "1");
+showChecks.onchange = () => setChecks(showChecks.checked);
 
 function toolItem(t) {
   const li = el("li");
@@ -143,6 +159,9 @@ fetch("_servers").then(r => r.json()).then(data => {
     addResources(card, url).catch(() => {});
     addPrompts(card, url).catch(() => {});
   }
+  const tools = data.servers.flatMap(s => s.tools);
+  const flagged = tools.filter(t => t.warnings.length).length;
+  document.getElementById("check-count").textContent = "(" + flagged + " of " + tools.length + " tools flagged)";
   document.getElementById("connect").textContent = urls.join("\n") || data.base_url;
   document.getElementById("curl").textContent = example
     ? "curl -s -X POST " + example.url + " \\\n  -H 'Content-Type: application/json' \\\n  -d '" + JSON.stringify(example.args) + "'"

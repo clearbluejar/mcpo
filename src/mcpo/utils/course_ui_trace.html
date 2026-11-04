@@ -34,7 +34,8 @@ function render(c) {
     el("span", c.status, "status"),
     el("span", c.ms + " ms", "muted"));
   card.append(head);
-  card.append(el("div", "Arguments", "label"), el("pre", pretty(c.arguments)));
+  const noArgs = c.arguments === "" || c.arguments === null || (typeof c.arguments === "object" && !Object.keys(c.arguments).length);
+  card.append(el("div", "Arguments", "label"), el("pre", noArgs ? "(no arguments)" : pretty(c.arguments)));
   const d = el("details"); if (!ok) d.open = true;
   d.append(el("summary", ok ? "Result" : "Error"), el("pre", pretty(c.result)));
   card.append(d);
